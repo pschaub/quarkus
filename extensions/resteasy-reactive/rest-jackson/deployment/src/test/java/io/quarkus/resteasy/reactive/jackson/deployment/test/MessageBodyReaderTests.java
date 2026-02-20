@@ -40,6 +40,7 @@ import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIdentityReference;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -83,6 +84,14 @@ class MessageBodyReaderTests {
             reader.readFrom((Class<Object>) book.getClass(), null, null, null, null, stream);
         }
 
+        void deserializeNumberExceedingMaxLength() throws IOException {
+            // A number with 1001 digits exceeds Jackson's DEFAULT_MAX_NUM_LEN of 1000
+            var json = "{\"cost\": " + "9".repeat(1001) + "}";
+            var stream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+            Object widget = new Widget("model", 1d);
+            reader.readFrom((Class<Object>) widget.getClass(), null, null, null, null, stream);
+        }
+
         void deserializeClassWithInvalidDefinition() throws IOException {
             var json = "{\n" +
                     "  \"arg\" : \"Learn HTML\"" +
@@ -115,6 +124,11 @@ class MessageBodyReaderTests {
         }
 
         @Test
+        void shouldThrowStreamConstraintsException() {
+            assertThrows(StreamConstraintsException.class, tests::deserializeNumberExceedingMaxLength);
+        }
+
+        @Test
         void shouldThrowInvalidDefinitionException() {
             assertThrows(InvalidDefinitionException.class, tests::deserializeClassWithInvalidDefinition);
         }
@@ -142,6 +156,12 @@ class MessageBodyReaderTests {
         void shouldThrowWebExceptionWithDatabindExceptionCause() {
             var e = assertThrows(WebApplicationException.class, tests::deserializeMissingReferenceProperty);
             assertThat(DatabindException.class).isAssignableFrom(e.getCause().getClass());
+        }
+
+        @Test
+        void shouldThrowWebExceptionWithStreamConstraintsExceptionCause() {
+            var e = assertThrows(WebApplicationException.class, tests::deserializeNumberExceedingMaxLength);
+            assertThat(StreamConstraintsException.class).isAssignableFrom(e.getCause().getClass());
         }
 
         @Test

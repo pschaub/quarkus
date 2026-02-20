@@ -17,6 +17,7 @@ import org.jboss.resteasy.reactive.server.spi.ResteasyReactiveResourceInfo;
 import org.jboss.resteasy.reactive.server.spi.ServerMessageBodyReader;
 import org.jboss.resteasy.reactive.server.spi.ServerRequestContext;
 
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,12 +57,15 @@ public class ServerJacksonMessageBodyReader extends AbstractServerJacksonMessage
              * communicate potential Jackson integration issues, and potential solutions for resolving them.
              */
             throw e;
-        } catch (StreamReadException | DatabindException e) {
+        } catch (StreamReadException | DatabindException | StreamConstraintsException e) {
             /*
              * As JSON is evaluated, it can be invalid due to one of two reasons:
              * 1) Malformed JSON. Un-parsable JSON results in a StreamReadException
              * 2) Valid JSON that violates some binding constraint, i.e., a required property, mismatched data types, etc.
              * Violations of these types are captured via a DatabindException.
+             * 3) JSON that violates stream read constraints (e.g., a number exceeding the maximum allowed length).
+             * These violations result in a StreamConstraintsException, which extends JsonProcessingException
+             * directly (not StreamReadException), so it must be caught explicitly.
              */
             throw new WebApplicationException(e, Response.Status.BAD_REQUEST);
         }
